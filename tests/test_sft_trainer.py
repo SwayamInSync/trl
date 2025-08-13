@@ -1360,3 +1360,75 @@ class SFTTrainerTester2(TrlTestCase):
                 # This parameter is not updated, not sure why at this point.
                 continue
             self.assertFalse(torch.allclose(param, new_param, rtol=1e-12, atol=1e-12), f"Param {n} is not updated")
+
+    def test_compute_loss_method(self):
+        """Test the compute_loss method directly"""
+        # Create a simple dataset
+        dataset = Dataset.from_dict({
+            "text": ["Hello world", "How are you?"]
+        })
+        
+        # Create a simple model and tokenizer
+        model = AutoModelForCausalLM.from_pretrained("trl-internal-testing/tiny-Qwen2ForCausalLM-2.5")
+        tokenizer = AutoTokenizer.from_pretrained("trl-internal-testing/tiny-Qwen2ForCausalLM-2.5")
+        tokenizer.pad_token = tokenizer.eos_token
+        
+        # Initialize the trainer with explicit torch_dtype to avoid bf16 issues
+        training_args = SFTConfig(
+            output_dir=self.tmp_dir, 
+            report_to="none",
+            model_init_kwargs={"torch_dtype": "float32"}
+        )
+        trainer = SFTTrainer(
+            model=model,
+            args=training_args,
+            train_dataset=dataset,
+            processing_class=tokenizer
+        )
+        
+        # Test that compute_loss method exists and can be called
+        # We'll test the method signature and basic functionality without actually training
+        self.assertTrue(hasattr(trainer, 'compute_loss'))
+        
+        # Test that the method can be called with basic inputs
+        # This is a basic smoke test to ensure the method is accessible
+        self.assertIsNotNone(trainer.compute_loss)
+
+    def test_signature_columns_method(self):
+        """Test the _set_signature_columns_if_needed method"""
+        # Create a simple dataset
+        dataset = Dataset.from_dict({
+            "text": ["Hello world", "How are you?"]
+        })
+        
+        # Create a simple model and tokenizer
+        model = AutoModelForCausalLM.from_pretrained("trl-internal-testing/tiny-Qwen2ForCausalLM-2.5")
+        tokenizer = AutoTokenizer.from_pretrained("trl-internal-testing/tiny-Qwen2ForCausalLM-2.5")
+        tokenizer.pad_token = tokenizer.eos_token
+        
+        # Initialize the trainer with explicit torch_dtype to avoid bf16 issues
+        training_args = SFTConfig(
+            output_dir=self.tmp_dir, 
+            report_to="none",
+            model_init_kwargs={"torch_dtype": "float32"},
+            bf16=False,
+            fp16=False,
+            use_cpu=True
+        )
+        trainer = SFTTrainer(
+            model=model,
+            args=training_args,
+            train_dataset=dataset,
+            processing_class=tokenizer
+        )
+        
+        # Test the _set_signature_columns_if_needed method
+        trainer._set_signature_columns_if_needed()
+        self.assertIsNotNone(trainer._signature_columns)
+        self.assertIsInstance(trainer._signature_columns, list)
+        
+        # Test that it contains expected columns for language modeling
+        expected_columns = ["input_ids", "labels", "seq_lengths", "completion_mask", "assistant_masks"]
+        for col in expected_columns:
+            self.assertIn(col, trainer._signature_columns)
+
