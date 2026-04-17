@@ -134,7 +134,7 @@ The DAPO algorithm includes 5 key components:
 - Clip-Higher
 - Soft Overlong Punishment
 - Token-level Loss
-- Dynamic Sampling (⚠️ Not supported in TRL)
+- Dynamic Sampling
 
 To reproduce the paper's setting, use this configuration:
 
@@ -144,6 +144,8 @@ from trl import GRPOConfig, GRPOTrainer
 training_args = GRPOConfig(
     # Overlong Filtering
     mask_truncated_completions=True,
+    # Dynamic Sampling
+    dynamic_sampling=True,
     # Token-level Loss
     loss_type="dapo",
     # Clip-Higher
@@ -189,7 +191,7 @@ training_args = GRPOConfig(
 
 A minority of tokens with high entropy act as reasoning "forks" in the CoT path, driving exploration and performance gains for RLVR, while low-entropy majority tokens contribute little or even impede learning. RLVR mainly adjusts high-entropy tokens, largely preserving the base model’s overall entropy patterns. Thus landing on the 80/20 rule, training on only 20% of the tokens with the highest entropy is comparable or supasses full-gradient updates for Qwen3 models.
 
-The paper's main results use vanilla DAPO (⚠️ Dynamic Sampling is not supported in TRL). To replicate the main results, use the following configuration:
+To replicate the main results, use the following configuration:
 
 ```python
 from trl import GRPOConfig, GRPOTrainer
@@ -199,6 +201,8 @@ training_args = GRPOConfig(
     # --- vanilla DAPO parameters (80/20 rule: section 5.2) --- #
     # Overlong Filtering
     mask_truncated_completions=True,
+    # Dynamic Sampling
+    dynamic_sampling=True,
     # Token-level Loss
     loss_type="dapo",
     # Clip-Higher

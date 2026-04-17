@@ -396,6 +396,7 @@ class RLOOTrainer(_BaseTrainer):
         self.vllm_tensor_parallel_size = args.vllm_tensor_parallel_size  # only applies to colocation mode
         self.normalize_advantages = args.normalize_advantages
         self.mask_truncated_completions = args.mask_truncated_completions
+        self.dynamic_sampling = args.dynamic_sampling
         self.reward_clip_range = args.reward_clip_range
 
         # Datasets
@@ -1302,6 +1303,14 @@ class RLOOTrainer(_BaseTrainer):
         )
         all_process_advantages = advantages.clone()  # keep the aggregated advantages for logging
         advantages = advantages[process_slice]
+
+        # Dynamic sampling: mask completions from groups with zero reward std, as they provide no gradient signal.
+        # This implements the Dynamic Sampling technique from the DAPO paper (Section 3.2).
+        if self.dynamic_sampling:
+            is_std_zero_expanded = is_std_zero.repeat_interleave(num_generations, dim=0)
+            is_std_zero_local = is_std_zero_expanded[process_slice]
+            completion_mask = completion_mask * (~is_std_zero_local).unsqueeze(1).int()
+            old_logps = old_logps * (~is_std_zero_local).float()
 
         # Calculate and log the mean KL divergence between current and reference model
         if self.beta != 0.0:

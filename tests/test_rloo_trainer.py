@@ -1050,6 +1050,58 @@ class TestRLOOTrainer(TrlTestCase):
             new_param = trainer.model.get_parameter(n)
             assert torch.equal(param, new_param), f"Parameter {n} has changed."
 
+    @patch("transformers.generation.utils.GenerationMixin.generate")
+    def test_training_with_dynamic_sampling(self, mock_generate):
+        """
+        Test that when dynamic_sampling=True and all completions in each group receive the same reward (zero reward
+        std), the model does not update because all completion masks are zeroed out.
+        """
+
+        def fake_generate(input_ids, **kwargs):
+            # pad_token_id = 151643; eos_token_id = 151645
+            completion_ids = torch.tensor(
+                [
+                    [1, 2, 3, 4, 5, 6, 7, 151645],
+                    [9, 10, 11, 151645, 151643, 151643, 151643, 151643],
+                    [12, 13, 14, 15, 16, 17, 18, 151645],
+                ],
+                device=input_ids.device,
+            )
+            return torch.cat([input_ids, completion_ids], dim=1)
+
+        mock_generate.side_effect = fake_generate
+
+        dataset = load_dataset("trl-internal-testing/zen", "standard_prompt_only", split="train")
+
+        def constant_reward_func(completions, **kwargs):
+            """Reward function that returns the same reward for all completions."""
+            return [1.0] * len(completions)
+
+        training_args = RLOOConfig(
+            output_dir=self.tmp_dir,
+            learning_rate=0.1,
+            per_device_train_batch_size=3,
+            num_generations=3,
+            max_completion_length=8,
+            dynamic_sampling=True,
+            report_to="none",
+        )
+        trainer = RLOOTrainer(
+            model="trl-internal-testing/tiny-Qwen2ForCausalLM-2.5",
+            reward_funcs=constant_reward_func,
+            args=training_args,
+            train_dataset=dataset,
+        )
+
+        previous_trainable_params = {n: param.clone() for n, param in trainer.model.named_parameters()}
+
+        trainer.train()
+
+        # All groups have zero reward std, so all completions should be masked and params should not change
+        for n, param in previous_trainable_params.items():
+            new_param = trainer.model.get_parameter(n)
+            assert torch.equal(param, new_param), f"Parameter {n} has changed."
+
     def test_warning_raised_all_rewards_none(self, caplog):
         """Test that a proper warning is raised when all rewards are None."""
         dataset = load_dataset("trl-internal-testing/zen", "standard_prompt_only", split="train")

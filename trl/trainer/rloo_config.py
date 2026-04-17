@@ -177,6 +177,11 @@ class RLOOConfig(_BaseConfig):
             When enabled, truncated completions are excluded from the loss calculation, preventing them from being
             incorrectly penalized and introducing noise during training. According to the
             [DAPO](https://huggingface.co/papers/2503.14476) paper, this is a good practice for training stability.
+        dynamic_sampling (`bool`, *optional*, defaults to `False`):
+            When enabled, completions from groups with zero reward standard deviation are masked from the loss
+            calculation. Groups where all completions receive the same reward provide no gradient signal, and
+            including them dilutes the effective learning rate for informative groups. This implements the Dynamic
+            Sampling technique from the [DAPO](https://huggingface.co/papers/2503.14476) paper.
         sync_ref_model (`bool`, *optional*, defaults to `False`):
             Whether to synchronize the reference model with the active model every `ref_model_sync_steps` steps, using
             the `ref_model_mixup_alpha` parameter. This synchronization originates from the
@@ -499,6 +504,15 @@ class RLOOConfig(_BaseConfig):
             "help": "When enabled, truncated completions are excluded from the loss calculation, preventing them from "
             "being incorrectly penalized and introducing noise during training. According to the DAPO paper, this is "
             "a good practice for training stability."
+        },
+    )
+    dynamic_sampling: bool = field(
+        default=False,
+        metadata={
+            "help": "When enabled, completions from groups with zero reward standard deviation are masked from the "
+            "loss calculation. Groups where all completions receive the same reward provide no gradient signal, and "
+            "including them dilutes the effective learning rate for informative groups. This implements the Dynamic "
+            "Sampling technique from the DAPO paper."
         },
     )
     sync_ref_model: bool = field(
